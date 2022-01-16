@@ -1,1 +1,1 @@
-uvicorn websocket_server:app --reload
+uvicorn server:app --reload
