@@ -11,4 +11,4 @@ async def sendRandomNumbers(uri, n=1000):
       await asyncio.sleep(0.1)
 
 
-asyncio.run(sendRandomNumbers('ws://127.0.0.1:8000/websocket_endpoint'))
+asyncio.run(sendRandomNumbers('ws://127.0.0.1:8000/sockets/input'))

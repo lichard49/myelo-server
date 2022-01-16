@@ -14,7 +14,7 @@
       let endpoint = window.location.origin;
       endpoint = endpoint.replace('http://', 'ws://');
       endpoint = endpoint.replace('https://', 'wss://');
-      return endpoint + '/visualization_socket'
+      return endpoint + '/sockets/output'
     }
 
     const ws = new WebSocket(getSocketEndpoint());
