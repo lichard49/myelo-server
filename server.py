@@ -32,4 +32,5 @@ async def websocket_endpoint(websocket: WebSocket):
   await websocket.accept()
   while True:
     data = await websocket.receive_text()
-    print('Message text was:', data)
+    for visualization_socket in connected_visualization_sockets:
+      await visualization_socket.send_text(data)
