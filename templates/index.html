@@ -5,11 +5,49 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="description" content="" />
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.3.2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon@1.27.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.0.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
 </head>
 <body>
   <h1>Hello, world!</h1>
 
+  <div>
+    <canvas id="myChart"></canvas>
+  </div>
+
   <script>
+    function setupChart(numSignals) {
+      // add datasets for number of signals to be plotted
+      const datasets = [];
+      for (let index = 0; index < numSignals; index++) {
+        datasets.push({data: []});
+      }
+
+      // create realtime Chart config
+      const config = {
+        type: 'line',
+        data: {
+          datasets: datasets
+        },
+        options: {
+          scales: {
+            x: {
+              type: 'realtime'
+            }
+          }
+        }
+      };
+
+      return new Chart(
+        document.getElementById('myChart'),
+        config
+      );
+    }
+    let myChart = null;
+
     function getSocketEndpoint() {
       let endpoint = window.location.origin;
       endpoint = endpoint.replace('http://', 'ws://');
@@ -20,6 +58,30 @@
     const ws = new WebSocket(getSocketEndpoint());
     ws.onmessage = function(event) {
       console.log(event);
+
+      // parse each comma-separated packet into individual signals
+      const signals = event.data.split(',');
+      for (let index = 0; index < signals.length; index++) {
+        signals[index] = parseFloat(signals[index]);
+      }
+
+      // set up chart if it hasn't been done already based on number of signals
+      if (myChart == null) {
+        myChart = setupChart(signals.length);
+      }
+
+      // plot each signal
+      const timestamp = Date.now();
+      for (let index = 0; index < signals.length; index++) {
+        const signalValue = signals[index];
+        myChart.data.datasets[index].data.push({
+          x: timestamp,
+          y: signalValue
+        });
+      }
+
+      // update chart
+      myChart.update('quiet');
     };
   </script>
 </body>
