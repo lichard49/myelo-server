@@ -26,8 +26,8 @@
       chart.plot.xWidth = 500;   // number of points to keep after xMin
       chart.plot.xMultiplier = chart.width / chart.plot.xWidth;
 
-      chart.plot.yMin = -10000;
-      chart.plot.yMax = 10000;
+      chart.plot.yMin = 0;
+      chart.plot.yMax = 1024;
       chart.plot.yMultiplier = chart.height / (chart.plot.yMax - chart.plot.yMin);
 
       return chart;
@@ -39,8 +39,8 @@
       const scaledX0 = (x0 - chart.plot.xMin) * chart.plot.xMultiplier;
       const scaledX1 = (x1 - chart.plot.xMin) * chart.plot.xMultiplier;
 
-      const scaledY0  = (y0 - chart.plot.yMin) * chart.plot.yMultiplier;
-      const scaledY1  = (y1 - chart.plot.yMin) * chart.plot.yMultiplier;
+      const scaledY0  = chart.height - (y0 - chart.plot.yMin) * chart.plot.yMultiplier;
+      const scaledY1  = chart.height - (y1 - chart.plot.yMin) * chart.plot.yMultiplier;
 
       context.beginPath();
       context.moveTo(scaledX0, scaledY0);
