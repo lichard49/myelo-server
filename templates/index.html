@@ -26,8 +26,8 @@
       chart.plot.xWidth = 500;   // number of points to keep after xMin
       chart.plot.xMultiplier = chart.width / chart.plot.xWidth;
 
-      chart.plot.yMin = -1;
-      chart.plot.yMax = 1;
+      chart.plot.yMin = -10000;
+      chart.plot.yMax = 10000;
       chart.plot.yMultiplier = chart.height / (chart.plot.yMax - chart.plot.yMin);
 
       return chart;
@@ -46,6 +46,14 @@
       context.moveTo(scaledX0, scaledY0);
       context.lineTo(scaledX1, scaledY1);
       context.stroke();
+    }
+
+    function slideChart(context) {
+      // https://stackoverflow.com/a/36337777
+      context.globalCompositeOperation = 'copy';
+      context.drawImage(context.canvas, -1, 0);
+      context.globalCompositeOperation = 'source-over';
+      context.imageSmoothingEnabled = false;
     }
 
     function getSocketEndpoint() {
@@ -73,8 +81,14 @@
       } else {
         // plot each signal
         for (let index = 0; index < signals.length; index++) {
-          const prevSignalTime = currentCount - 1;
-          const signalTime = currentCount;
+          let prevSignalTime = currentCount - 1;
+          let signalTime = currentCount;
+
+          if (currentCount > myCanvas.plot.xWidth) {
+            slideChart(myContext);
+            prevSignalTime = myCanvas.plot.xWidth - 1;
+            signalTime = myCanvas.plot.xWidth;
+          }
 
           const prevSignalValue = prevSignals[index];
           const signalValue = signals[index];
