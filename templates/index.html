@@ -5,11 +5,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="description" content="" />
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.3.2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/luxon@1.27.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.0.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@2.0.0"></script>
 </head>
 <body>
   <h1>Hello, world!</h1>
@@ -19,34 +14,39 @@
   </div>
 
   <script>
-    function setupChart(numSignals) {
-      // add datasets for number of signals to be plotted
-      const datasets = [];
-      for (let index = 0; index < numSignals; index++) {
-        datasets.push({data: []});
-      }
+    function setupChart(chartId) {
+      const chart = document.getElementById(chartId);
+      chart.width = window.innerWidth - 16;   // account for body margin
+      chart.height = chart.width * 2 / 3;   // 3:2 chart ratio
+      chart.style.background = 'lightgray';
 
-      // create realtime Chart config
-      const config = {
-        type: 'line',
-        data: {
-          datasets: datasets
-        },
-        options: {
-          scales: {
-            x: {
-              type: 'realtime'
-            }
-          }
-        }
-      };
+      chart.plot = {};
 
-      return new Chart(
-        document.getElementById('myChart'),
-        config
-      );
+      chart.plot.xMin = null;
+      chart.plot.xWidth = 500;   // number of points to keep after xMin
+      chart.plot.xMultiplier = chart.width / chart.plot.xWidth;
+
+      chart.plot.yMin = -1;
+      chart.plot.yMax = 1;
+      chart.plot.yMultiplier = chart.height / (chart.plot.yMax - chart.plot.yMin);
+
+      return chart;
     }
-    let myChart = null;
+    const myCanvas = setupChart('myChart');
+    const myContext = myCanvas.getContext('2d');
+
+    function drawScaledLine(chart, context, x0, y0, x1, y1) {
+      const scaledX0 = (x0 - chart.plot.xMin) * chart.plot.xMultiplier;
+      const scaledX1 = (x1 - chart.plot.xMin) * chart.plot.xMultiplier;
+
+      const scaledY0  = (y0 - chart.plot.yMin) * chart.plot.yMultiplier;
+      const scaledY1  = (y1 - chart.plot.yMin) * chart.plot.yMultiplier;
+
+      context.beginPath();
+      context.moveTo(scaledX0, scaledY0);
+      context.lineTo(scaledX1, scaledY1);
+      context.stroke();
+    }
 
     function getSocketEndpoint() {
       let endpoint = window.location.origin;
@@ -55,6 +55,8 @@
       return endpoint + '/sockets/output'
     }
 
+    let currentCount = 0;
+    let prevSignals = [];
     const ws = new WebSocket(getSocketEndpoint());
     ws.onmessage = function(event) {
       console.log(event);
@@ -65,23 +67,28 @@
         signals[index] = parseFloat(signals[index]);
       }
 
-      // set up chart if it hasn't been done already based on number of signals
-      if (myChart == null) {
-        myChart = setupChart(signals.length);
+      if (myCanvas.plot.xMin == null) {
+        // set start time (xMin) if it hasn't already
+        myCanvas.plot.xMin = currentCount;
+      } else {
+        // plot each signal
+        for (let index = 0; index < signals.length; index++) {
+          const prevSignalTime = currentCount - 1;
+          const signalTime = currentCount;
+
+          const prevSignalValue = prevSignals[index];
+          const signalValue = signals[index];
+
+          drawScaledLine(myCanvas, myContext, prevSignalTime, prevSignalValue,
+              signalTime, signalValue);
+        }
       }
 
-      // plot each signal
-      const timestamp = Date.now();
-      for (let index = 0; index < signals.length; index++) {
-        const signalValue = signals[index];
-        myChart.data.datasets[index].data.push({
-          x: timestamp,
-          y: signalValue
-        });
-      }
+      // increment count
+      currentCount += 1;
 
-      // update chart
-      myChart.update('quiet');
+      // keep a copy of the signals for plotting both ends of each line
+      prevSignals = signals;
     };
   </script>
 </body>
