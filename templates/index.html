@@ -9,6 +9,8 @@
 <body>
   <h1>Hello, world!</h1>
 
+  <button id="recordButton">Start Recording</button>
+
   <div>
     <canvas id="myChart"></canvas>
   </div>
@@ -63,6 +65,10 @@
       return endpoint + '/sockets/output'
     }
 
+    function getRecordingEndpoint(recording) {
+      return window.location.origin + '/record?recording=' + recording;
+    }
+
     let currentCount = 0;
     let prevSignals = [];
     const ws = new WebSocket(getSocketEndpoint());
@@ -104,6 +110,34 @@
       // keep a copy of the signals for plotting both ends of each line
       prevSignals = signals;
     };
+
+    const recordButton = document.getElementById('recordButton');
+    recordButton.addEventListener('click', function() {
+      let endpoint = null;
+      if (recordButton.innerText === 'Start Recording') {
+        endpoint = getRecordingEndpoint(true);
+      } else if (recordButton.innerText === 'Stop Recording') {
+        endpoint = getRecordingEndpoint(false);
+      }
+
+      if (endpoint !== null) {
+        fetch(endpoint)
+          .then(response => response.text())
+          .then(response => {
+            response = parseInt(response);
+            if (response === 1) {
+              document.body.style.background = 'red';
+              recordButton.innerText = 'Stop Recording';
+            } else if (response === 0) {
+              document.body.style.background = 'white';
+              recordButton.innerText = 'Start Recording';
+            } else if (response === -1) {
+              document.body.style.background = 'gray';
+              recordButton.innerText = 'Something went wrong';
+            }
+          });
+      }
+    });
   </script>
 </body>
 </html>
