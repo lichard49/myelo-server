@@ -12,104 +12,121 @@
   <button id="recordButton">Start Recording</button>
 
   <div>
-    <canvas id="myChart"></canvas>
+    <canvas id="myCanvas"></canvas>
   </div>
 
   <script>
-    function setupChart(chartId) {
-      const chart = document.getElementById(chartId);
-      chart.width = window.innerWidth - 16;   // account for body margin
-      chart.height = chart.width * 2 / 3;   // 3:2 chart ratio
-      chart.style.background = 'lightgray';
+    class Plot1D {
+      constructor(canvas) {
+        // canvas to draw plot on
+        this.canvas = canvas;
+        this.context = this.canvas.getContext('2d');
 
-      chart.plot = {};
+        // coordinate of last plotted point to connect line to new point
+        this.prevX = 0;
+        this.prevY = 0;
 
-      chart.plot.xMin = null;
-      chart.plot.xWidth = 500;   // number of points to keep after xMin
-      chart.plot.xMultiplier = chart.width / chart.plot.xWidth;
+        // queued points to plot
+        this.yQueue = [];
+      }
 
-      chart.plot.yMin = 0;
-      chart.plot.yMax = 1024;
-      chart.plot.yMultiplier = chart.height / (chart.plot.yMax - chart.plot.yMin);
+      // efficiently slide canvas contents by a horizontal amount
+      // https://stackoverflow.com/a/36337777 
+      slide(slideAmount) {
+        this.context.globalCompositeOperation = 'copy';
+        this.context.drawImage(this.canvas, -1 * slideAmount, 0);
+        this.context.globalCompositeOperation = 'source-over';
+        this.context.imageSmoothingEnabled = false;
 
-      return chart;
+        this.prevX -= slideAmount;
+      }
+
+      // pull points from queue to plot
+      refreshPlot() {
+        if (this.yQueue.length > 0) {
+          this.appendYPoints(this.yQueue, 5);
+        }
+      }
+
+      // set range of Y values for scaling the plot
+      setYScale(yMin, yMax) {
+        this.yMin = yMin;
+        this.yMax = yMax;
+        this.yMultiplier = this.canvas.height / (this.yMax - this.yMin);
+
+        this.prevY = this.scaleY(this.prevY);
+      }
+
+      // apply scaling to a Y value
+      scaleY(yValue) {
+        return (yValue - this.yMin) * this.yMultiplier;
+      }
+
+      // draw a new point by connecting a line from the last plotted point
+      appendXYPoint(newX, newY) {
+        newY = this.scaleY(newY);
+
+        this.context.beginPath();
+        this.context.moveTo(this.prevX, this.prevY);
+        this.context.lineTo(newX, newY);
+        this.context.stroke();
+
+        this.prevX = newX;
+        this.prevY = newY;
+      }
+
+      // draw a new point using a relative X offset from the last plotted point
+      appendYPoint(newY, deltaX) {
+        this.appendXYPoint(this.prevX + deltaX, newY);
+      }
+
+      // pull points from a queue to plot
+      appendYPoints(newYs, deltaX) {
+        const numYPoints = newYs.length;
+
+        const yPointsSpaceNeeded = numYPoints * deltaX;
+        if (this.prevX + yPointsSpaceNeeded > this.canvas.width) {
+          this.slide(this.prevX + yPointsSpaceNeeded - this.canvas.width);
+        }
+
+        for (let index = 0; index < numYPoints; index++) {
+          const yPoint = newYs.shift();
+          this.appendYPoint(yPoint, deltaX);
+        }
+      }
+
     }
-    const myCanvas = setupChart('myChart');
-    const myContext = myCanvas.getContext('2d');
 
-    function drawScaledLine(chart, context, x0, y0, x1, y1) {
-      const scaledX0 = (x0 - chart.plot.xMin) * chart.plot.xMultiplier;
-      const scaledX1 = (x1 - chart.plot.xMin) * chart.plot.xMultiplier;
+    const canvas = document.getElementById('myCanvas');
+    const plot = new Plot1D(canvas);
+    canvas.width = 500;
+    canvas.height = 200;
+    canvas.style.background = 'lightgray';
+    plot.setYScale(0, 1);
 
-      const scaledY0  = chart.height - (y0 - chart.plot.yMin) * chart.plot.yMultiplier;
-      const scaledY1  = chart.height - (y1 - chart.plot.yMin) * chart.plot.yMultiplier;
-
-      context.beginPath();
-      context.moveTo(scaledX0, scaledY0);
-      context.lineTo(scaledX1, scaledY1);
-      context.stroke();
-    }
-
-    function slideChart(context) {
-      // https://stackoverflow.com/a/36337777
-      context.globalCompositeOperation = 'copy';
-      context.drawImage(context.canvas, -1, 0);
-      context.globalCompositeOperation = 'source-over';
-      context.imageSmoothingEnabled = false;
-    }
+    setInterval(function() {
+      plot.refreshPlot();
+    }, 100);
 
     function getSocketEndpoint() {
       let endpoint = window.location.origin;
       endpoint = endpoint.replace('http://', 'ws://');
       endpoint = endpoint.replace('https://', 'wss://');
-      return endpoint + '/sockets/output'
+      return endpoint + '/sockets/output';
     }
+
+    const ws = new WebSocket(getSocketEndpoint());
+    ws.onmessage = function(event) {
+      // console.log(event);
+      if (event.data != null) {
+        const event_parts = event.data.split(',');
+        plot.yQueue.push(parseFloat(event_parts[0]));
+      }
+    };
 
     function getRecordingEndpoint(recording) {
       return window.location.origin + '/record?recording=' + recording;
     }
-
-    let currentCount = 0;
-    let prevSignals = [];
-    const ws = new WebSocket(getSocketEndpoint());
-    ws.onmessage = function(event) {
-      console.log(event);
-
-      // parse each comma-separated packet into individual signals
-      const signals = event.data.split(',');
-      for (let index = 0; index < signals.length; index++) {
-        signals[index] = parseFloat(signals[index]);
-      }
-
-      if (myCanvas.plot.xMin == null) {
-        // set start time (xMin) if it hasn't already
-        myCanvas.plot.xMin = currentCount;
-      } else {
-        // plot each signal
-        for (let index = 0; index < signals.length; index++) {
-          let prevSignalTime = currentCount - 1;
-          let signalTime = currentCount;
-
-          if (currentCount > myCanvas.plot.xWidth) {
-            slideChart(myContext);
-            prevSignalTime = myCanvas.plot.xWidth - 1;
-            signalTime = myCanvas.plot.xWidth;
-          }
-
-          const prevSignalValue = prevSignals[index];
-          const signalValue = signals[index];
-
-          drawScaledLine(myCanvas, myContext, prevSignalTime, prevSignalValue,
-              signalTime, signalValue);
-        }
-      }
-
-      // increment count
-      currentCount += 1;
-
-      // keep a copy of the signals for plotting both ends of each line
-      prevSignals = signals;
-    };
 
     const recordButton = document.getElementById('recordButton');
     recordButton.addEventListener('click', function() {
