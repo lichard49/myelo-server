@@ -36,6 +36,7 @@
   <h1>Hello, world!</h1>
 
   <button id="recordButton">Start Recording</button>
+  <span>Received data: <span id="receivedDataLabel"></span></span>
 
   <div id="myPlot">
     <canvas></canvas>
@@ -88,9 +89,8 @@
 
       // pull points from queue to plot
       refreshPlot() {
-        this.yCurrentLabel.innerHTML = this.yQueue[0].toFixed(2);
-
         if (this.yQueue.length > 0) {
+          this.yCurrentLabel.innerHTML = this.yQueue[0].toFixed(2);
           this.appendYPoints(this.yQueue, 5);
         }
       }
@@ -172,9 +172,10 @@
       return endpoint + '/sockets/output';
     }
 
+    const receivedDataLabel = document.getElementById('receivedDataLabel');
     const ws = new WebSocket(getSocketEndpoint());
     ws.onmessage = function(event) {
-      // console.log(event);
+      receivedDataLabel.innerHTML = event.data;
       if (event.data != null) {
         const event_parts = event.data.split(',');
         plot.yQueue.push(parseFloat(event_parts[0]));
