@@ -25,6 +25,11 @@
     #myPlot .yLabel.yMin {
       bottom: 0px;
     }
+
+    #myPlot .yLabel.yCurrent {
+      top: 75px;
+      outline-color: blue;
+    }
   </style>
 </head>
 <body>
@@ -36,6 +41,7 @@
     <canvas></canvas>
     <p class="yLabel yMax" contentEditable="true">1</p>
     <p class="yLabel yMin" contentEditable="true">0</p>
+    <p class="yLabel yCurrent"></p>
   </div>
 
   <script>
@@ -45,6 +51,7 @@
         this.plot = document.getElementById(plotId);
         this.yMaxLabel = this.plot.getElementsByClassName('yMax')[0];
         this.yMinLabel = this.plot.getElementsByClassName('yMin')[0];
+        this.yCurrentLabel = this.plot.getElementsByClassName('yCurrent')[0];
 
         // canvas to draw plot on
         this.canvas = this.plot.getElementsByTagName('canvas')[0];
@@ -81,6 +88,8 @@
 
       // pull points from queue to plot
       refreshPlot() {
+        this.yCurrentLabel.innerHTML = this.yQueue[0].toFixed(2);
+
         if (this.yQueue.length > 0) {
           this.appendYPoints(this.yQueue, 5);
         }
