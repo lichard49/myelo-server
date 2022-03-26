@@ -5,21 +5,49 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="description" content="" />
+  <style>
+    #myPlot {
+      position: relative;
+    }
+
+    #myPlot .yLabel {
+      position: absolute;
+      left: 5px;
+      outline: 1px solid red;
+      padding: 2px;
+      background-color: rgba(100, 100, 100, 0.3);
+    }
+
+    #myPlot .yLabel.yMax {
+      top: 0px;
+    }
+
+    #myPlot .yLabel.yMin {
+      bottom: 0px;
+    }
+  </style>
 </head>
 <body>
   <h1>Hello, world!</h1>
 
   <button id="recordButton">Start Recording</button>
 
-  <div>
-    <canvas id="myCanvas"></canvas>
+  <div id="myPlot">
+    <canvas></canvas>
+    <p class="yLabel yMax" contentEditable="true">1</p>
+    <p class="yLabel yMin" contentEditable="true">0</p>
   </div>
 
   <script>
     class Plot1D {
-      constructor(canvas) {
+      constructor(plotId) {
+        // HTML elements associated with plot
+        this.plot = document.getElementById(plotId);
+        this.yMaxLabel = this.plot.getElementsByClassName('yMax')[0];
+        this.yMinLabel = this.plot.getElementsByClassName('yMin')[0];
+
         // canvas to draw plot on
-        this.canvas = canvas;
+        this.canvas = this.plot.getElementsByTagName('canvas')[0];
         this.context = this.canvas.getContext('2d');
 
         // coordinate of last plotted point to connect line to new point
@@ -28,6 +56,16 @@
 
         // queued points to plot
         this.yQueue = [];
+
+        // update Y scale to initial range based on labels
+        this.updateYScale();
+        // keep Y scale updated as labels change
+        this.yMaxLabel.addEventListener('input', (e) => {
+          this.updateYScale();
+        });
+        this.yMinLabel.addEventListener('input', (e) => {
+          this.updateYScale();
+        });
       }
 
       // efficiently slide canvas contents by a horizontal amount
@@ -57,6 +95,16 @@
         this.prevY = this.scaleY(this.prevY);
       }
 
+      // update Y scale based on Y labels
+      updateYScale() {
+        const yMin = parseFloat(this.yMinLabel.innerHTML);
+        const yMax = parseFloat(this.yMaxLabel.innerHTML);
+
+        if (!Number.isNaN(yMin) && !Number.isNaN(yMax)) {
+          this.setYScale(yMin, yMax);
+        }
+      }
+
       // apply scaling to a Y value
       scaleY(yValue) {
         return (yValue - this.yMin) * this.yMultiplier;
@@ -65,6 +113,7 @@
       // draw a new point by connecting a line from the last plotted point
       appendXYPoint(newX, newY) {
         newY = this.scaleY(newY);
+        newY = this.canvas.height - newY; // flip Y axis so 0 is on the bottom
 
         this.context.beginPath();
         this.context.moveTo(this.prevX, this.prevY);
@@ -97,11 +146,10 @@
 
     }
 
-    const canvas = document.getElementById('myCanvas');
-    const plot = new Plot1D(canvas);
-    canvas.width = 500;
-    canvas.height = 200;
-    canvas.style.background = 'lightgray';
+    const plot = new Plot1D('myPlot');
+    plot.canvas.width = 500;
+    plot.canvas.height = 200;
+    plot.canvas.style.background = 'lightgray';
     plot.setYScale(0, 1);
 
     setInterval(function() {
