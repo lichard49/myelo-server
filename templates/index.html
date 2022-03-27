@@ -37,6 +37,8 @@
 
   <button id="recordButton">Start Recording</button>
   <span>Received data: <span id="receivedDataLabel"></span></span>
+  <p>Plot columns:</p>
+  <div id="columnSelectors"></div>
 
   <div id="myPlot">
     <canvas></canvas>
@@ -175,12 +177,61 @@
     const receivedDataLabel = document.getElementById('receivedDataLabel');
     const ws = new WebSocket(getSocketEndpoint());
     ws.onmessage = function(event) {
-      receivedDataLabel.innerHTML = event.data;
       if (event.data != null) {
-        const event_parts = event.data.split(',');
-        plot.yQueue.push(parseFloat(event_parts[0]));
+        // show raw, unparsed data
+        receivedDataLabel.innerHTML = event.data;
+
+        // parse data in CSV format
+        const eventParts = event.data.split(',');
+        if (eventParts.length > 0) {
+          updateColumnSelectors(eventParts.length);
+
+          for (let index = 0; index < eventParts.length; index++) {
+            if (document.getElementById('columnSelector' + index).checked) {
+              plot.yQueue.push(parseFloat(eventParts[index]));
+            }
+          }
+        }
       }
     };
+
+    const columnSelectors = document.getElementById('columnSelectors');
+    function updateColumnSelectors(numSelectors) {
+      const currentNumSelectors = columnSelectors.children.length;
+      if (currentNumSelectors > numSelectors) {
+        for (let index = currentNumSelectors - 1; index >= numSelectors;
+            index--) {
+          // remove selectors
+          const selectorContainerName = 'columnSelector' + index + 'Container';
+          const selector = document.getElementById(selectorContainerName);
+          columnSelectors.removeChild(selector);
+        }
+      } else if (currentNumSelectors < numSelectors) {
+        for (let index = currentNumSelectors; index < numSelectors; index++) {
+          // add selectors
+          const selectorName = 'columnSelector' + index;
+
+          // create selector checkbox
+          const selectorCheckbox = document.createElement('input');
+          selectorCheckbox.type = 'checkbox';
+          selectorCheckbox.name = selectorName;
+          selectorCheckbox.id = selectorName;
+
+          // create selector label
+          const selectorLabel = document.createElement('label');
+          selectorLabel.htmlFor = selectorName;
+          selectorLabel.appendChild(document.createTextNode(index));
+
+          // put selector checkbox and label together
+          const selectorContainer = document.createElement('div');
+          selectorContainer.id = selectorName + 'Container';
+          selectorContainer.appendChild(selectorCheckbox);
+          selectorContainer.appendChild(selectorLabel);
+
+          columnSelectors.appendChild(selectorContainer)
+        }
+      }
+    }
 
     function getRecordingEndpoint(recording) {
       return window.location.origin + '/record?recording=' + recording;
