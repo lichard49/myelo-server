@@ -6,7 +6,9 @@ import time
 
 
 async def sendUsbData(uri):
-  usb_device = serial.Serial('/dev/tty.usbmodem14101', 115200)
+  # usb_device = serial.Serial('/dev/tty.usbmodem101', 115200)
+  usb_device = serial.Serial('/dev/cu.usbmodem2101', 115200)
+
   async with connect(uri) as websocket:
     while True:
       data = usb_device.readline().decode('utf-8')
