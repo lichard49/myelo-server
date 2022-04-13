@@ -6,11 +6,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="description" content="" />
   <style>
-    #myPlot {
+    .plot {
       position: relative;
     }
 
-    #myPlot .yLabel {
+    .plot .yLabel {
       position: absolute;
       left: 5px;
       outline: 1px solid red;
@@ -18,15 +18,15 @@
       background-color: rgba(100, 100, 100, 0.3);
     }
 
-    #myPlot .yLabel.yMax {
+    .plot .yLabel.yMax {
       top: 0px;
     }
 
-    #myPlot .yLabel.yMin {
+    .plot .yLabel.yMin {
       bottom: 0px;
     }
 
-    #myPlot .yLabel.yCurrent {
+    .plot .yLabel.yCurrent {
       top: 75px;
       outline-color: blue;
     }
@@ -40,25 +40,13 @@
   <p>Plot columns:</p>
   <div id="columnSelectors"></div>
 
-  <div id="myPlot">
-    <canvas></canvas>
-    <p class="yLabel yMax" contentEditable="true">1</p>
-    <p class="yLabel yMin" contentEditable="true">0</p>
-    <p class="yLabel yCurrent"></p>
-  </div>
+  <div id="plots"></div>
 
   <script>
     class Plot1D {
-      constructor(plotId) {
-        // HTML elements associated with plot
-        this.plot = document.getElementById(plotId);
-        this.yMaxLabel = this.plot.getElementsByClassName('yMax')[0];
-        this.yMinLabel = this.plot.getElementsByClassName('yMin')[0];
-        this.yCurrentLabel = this.plot.getElementsByClassName('yCurrent')[0];
-
-        // canvas to draw plot on
-        this.canvas = this.plot.getElementsByTagName('canvas')[0];
-        this.context = this.canvas.getContext('2d');
+      constructor(plotId, parentElement) {
+        // build DOM structure
+        this.generateDomElements(plotId, parentElement);
 
         // coordinate of last plotted point to connect line to new point
         this.prevX = 0;
@@ -76,6 +64,38 @@
         this.yMinLabel.addEventListener('input', (e) => {
           this.updateYScale();
         });
+      }
+
+      generateDomElements(plotId, parentElement) {
+        this.plot = document.createElement('div');
+        this.plot.id = plotId;
+        this.plot.classList.add('plot');
+
+        this.canvas = document.createElement('canvas');
+        this.context = this.canvas.getContext('2d');
+        this.plot.appendChild(this.canvas);
+
+        this.yMaxLabel = document.createElement('p');
+        this.yMaxLabel.classList.add('yLabel');
+        this.yMaxLabel.classList.add('yMax');
+        this.yMaxLabel.contentEditable = 'true';
+        this.yMaxLabel.innerText = '1';
+        this.plot.appendChild(this.yMaxLabel);
+
+        this.yMinLabel = document.createElement('p');
+        this.yMinLabel.classList.add('yLabel');
+        this.yMinLabel.classList.add('yMin');
+        this.yMinLabel.contentEditable = 'true';
+        this.yMinLabel.innerText = '0';
+        this.plot.appendChild(this.yMinLabel);
+
+        this.yCurrentLabel = document.createElement('p');
+        this.yCurrentLabel.classList.add('yLabel');
+        this.yCurrentLabel.classList.add('yCurrent');
+        this.plot.appendChild(this.yCurrentLabel);
+
+        this.parentElement = parentElement;
+        this.parentElement.appendChild(this.plot);
       }
 
       // efficiently slide canvas contents by a horizontal amount
@@ -154,17 +174,13 @@
           this.appendYPoint(yPoint, deltaX);
         }
       }
-
     }
 
-    const plot = new Plot1D('myPlot');
-    plot.canvas.width = 500;
-    plot.canvas.height = 200;
-    plot.canvas.style.background = 'lightgray';
-    plot.setYScale(0, 1);
-
+    const plots = {};
     setInterval(function() {
-      plot.refreshPlot();
+      for (let key in plots) {
+        plots[key].refreshPlot();
+      }
     }, 100);
 
     function getSocketEndpoint() {
@@ -184,11 +200,13 @@
         // parse data in CSV format
         const eventParts = event.data.split(',');
         if (eventParts.length > 0) {
+          // make sure column selectors are avaialble for every element received
           updateColumnSelectors(eventParts.length);
 
+          // forward element to corresponding plot
           for (let index = 0; index < eventParts.length; index++) {
             if (document.getElementById('columnSelector' + index).checked) {
-              plot.yQueue.push(parseFloat(eventParts[index]));
+              plots[index].yQueue.push(parseFloat(eventParts[index]));
             }
           }
         }
@@ -216,6 +234,7 @@
           selectorCheckbox.type = 'checkbox';
           selectorCheckbox.name = selectorName;
           selectorCheckbox.id = selectorName;
+          selectorCheckbox.addEventListener('change', selectorUpdate);
 
           // create selector label
           const selectorLabel = document.createElement('label');
@@ -229,6 +248,29 @@
           selectorContainer.appendChild(selectorLabel);
 
           columnSelectors.appendChild(selectorContainer)
+        }
+      }
+    }
+
+    function selectorUpdate(e) {
+      const selectorId = e.srcElement.id.replace('columnSelector', '');
+      if (this.checked) {
+        console.log(plots);
+        if (!(selectorId in plots)) {
+          // add new plot
+          plots[selectorId] = new Plot1D('myPlot' + selectorId,
+              document.getElementById('plots'));
+
+          // style new plot
+          plots[selectorId].canvas.width = 500;
+          plots[selectorId].canvas.height = 200;
+          plots[selectorId].canvas.style.background = 'lightgray';
+        }
+      } else {
+        if (selectorId in plots) {
+          // remove existing plot
+          plots[selectorId].plot.remove();   // from DOM
+          delete plots[selectorId];   // from data structure
         }
       }
     }
