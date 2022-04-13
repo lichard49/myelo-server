@@ -10,16 +10,19 @@ def getRandomNumbers(i):
 
 
 def getSineWave(i, j):
-  return ','.join([str(math.sin(j * 0.2) * (k + 1) * j) for k in range(i)])
+  # return ','.join([str(math.sin(j * 0.2) * (k + 1) * j) for k in range(i)])
+  return ','.join([str(math.sin(j * 0.2)) for _ in range(i)])
 
 
-async def sendRandomNumbers(uri, n=1000, i=3, fs=10):
+async def sendRandomNumbers(uri, n=1000000, i=3, fs=10):
   period = 1/fs
   async with connect(uri) as websocket:
     for j in range(n):
       # data = getRandomNumbers(i)
-      data = getSineWave(i, j)
-      await websocket.send(data)
+      # data = getSineWave(i, j)
+      a = str(math.sin(j * 0.2))
+      b = str(abs((j % 6) - 3))
+      await websocket.send(a + ',' + b)
       await asyncio.sleep(period)
 
 
