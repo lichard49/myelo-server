@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Hello, world!</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="" />
+  <style>
+    .plot {
+      position: relative;
+    }
+
+    .plot .yLabel {
+      position: absolute;
+      left: 5px;
+      outline: 1px solid red;
+      padding: 2px;
+      background-color: rgba(100, 100, 100, 0.3);
+    }
+
+    .plot .yLabel.yMax {
+      top: 0px;
+    }
+
+    .plot .yLabel.yMin {
+      bottom: 0px;
+    }
+
+    .plot .yLabel.yCurrent {
+      top: 75px;
+      outline-color: blue;
+    }
+  </style>
+</head>
+<body>
+  <h1>Hello, world!</h1>
+
+  <button id="button">Connect</button>
+
+  <button id="recordButton">Start Recording</button>
+  <span>Received data: <span id="receivedDataLabel"></span></span>
+  <p>Plot columns:</p>
+  <div id="columnSelectors"></div>
+
+  <div id="plots"></div>
+
+  <script>
+    class Plot1D {
+      constructor(plotId, parentElement) {
+        // build DOM structure
+        this.generateDomElements(plotId, parentElement);
+
+        // coordinate of last plotted point to connect line to new point
+        this.prevX = 0;
+        this.prevY = 0;
+
+        // queued points to plot
+        this.yQueue = [];
+
+        // update Y scale to initial range based on labels
+        this.updateYScale();
+        // keep Y scale updated as labels change
+        this.yMaxLabel.addEventListener('input', (e) => {
+          this.updateYScale();
+        });
+        this.yMinLabel.addEventListener('input', (e) => {
+          this.updateYScale();
+        });
+      }
+
+      generateDomElements(plotId, parentElement) {
+        this.plot = document.createElement('div');
+        this.plot.id = plotId;
+        this.plot.classList.add('plot');
+
+        this.canvas = document.createElement('canvas');
+        this.context = this.canvas.getContext('2d');
+        this.plot.appendChild(this.canvas);
+
+        this.yMaxLabel = document.createElement('p');
+        this.yMaxLabel.classList.add('yLabel');
+        this.yMaxLabel.classList.add('yMax');
+        this.yMaxLabel.contentEditable = 'true';
+        this.yMaxLabel.innerText = '1';
+        this.plot.appendChild(this.yMaxLabel);
+
+        this.yMinLabel = document.createElement('p');
+        this.yMinLabel.classList.add('yLabel');
+        this.yMinLabel.classList.add('yMin');
+        this.yMinLabel.contentEditable = 'true';
+        this.yMinLabel.innerText = '0';
+        this.plot.appendChild(this.yMinLabel);
+
+        this.yCurrentLabel = document.createElement('p');
+        this.yCurrentLabel.classList.add('yLabel');
+        this.yCurrentLabel.classList.add('yCurrent');
+        this.plot.appendChild(this.yCurrentLabel);
+
+        this.parentElement = parentElement;
+        this.parentElement.appendChild(this.plot);
+      }
+
+      // efficiently slide canvas contents by a horizontal amount
+      // https://stackoverflow.com/a/36337777 
+      slide(slideAmount) {
+        this.context.globalCompositeOperation = 'copy';
+        this.context.drawImage(this.canvas, -1 * slideAmount, 0);
+        this.context.globalCompositeOperation = 'source-over';
+        this.context.imageSmoothingEnabled = false;
+
+        this.prevX -= slideAmount;
+      }
+
+      // pull points from queue to plot
+      refreshPlot() {
+        if (this.yQueue.length > 0) {
+          this.yCurrentLabel.innerHTML = this.yQueue[0].toFixed(2);
+          this.appendYPoints(this.yQueue, 5);
+        }
+      }
+
+      // set range of Y values for scaling the plot
+      setYScale(yMin, yMax) {
+        this.yMin = yMin;
+        this.yMax = yMax;
+        this.yMultiplier = this.canvas.height / (this.yMax - this.yMin);
+
+        this.prevY = this.scaleY(this.prevY);
+      }
+
+      // update Y scale based on Y labels
+      updateYScale() {
+        const yMin = parseFloat(this.yMinLabel.innerHTML);
+        const yMax = parseFloat(this.yMaxLabel.innerHTML);
+
+        if (!Number.isNaN(yMin) && !Number.isNaN(yMax)) {
+          this.setYScale(yMin, yMax);
+        }
+      }
+
+      // apply scaling to a Y value
+      scaleY(yValue) {
+        return (yValue - this.yMin) * this.yMultiplier;
+      }
+
+      // draw a new point by connecting a line from the last plotted point
+      appendXYPoint(newX, newY) {
+        newY = this.scaleY(newY);
+        newY = this.canvas.height - newY; // flip Y axis so 0 is on the bottom
+
+        this.context.beginPath();
+        this.context.moveTo(this.prevX, this.prevY);
+        this.context.lineTo(newX, newY);
+        this.context.stroke();
+
+        this.prevX = newX;
+        this.prevY = newY;
+      }
+
+      // draw a new point using a relative X offset from the last plotted point
+      appendYPoint(newY, deltaX) {
+        this.appendXYPoint(this.prevX + deltaX, newY);
+      }
+
+      // pull points from a queue to plot
+      appendYPoints(newYs, deltaX) {
+        const numYPoints = newYs.length;
+
+        const yPointsSpaceNeeded = numYPoints * deltaX;
+        if (this.prevX + yPointsSpaceNeeded > this.canvas.width) {
+          this.slide(this.prevX + yPointsSpaceNeeded - this.canvas.width);
+        }
+
+        for (let index = 0; index < numYPoints; index++) {
+          const yPoint = newYs.shift();
+          this.appendYPoint(yPoint, deltaX);
+        }
+      }
+    }
+
+    const plots = {};
+    setInterval(function() {
+      for (let key in plots) {
+        plots[key].refreshPlot();
+      }
+    }, 100);
+
+    const receivedDataLabel = document.getElementById('receivedDataLabel');
+    document.getElementById('button').addEventListener('click', async () => {
+      // Prompt user to select any serial port.
+      const port = await navigator.serial.requestPort();
+      console.log(port);
+
+      // Wait for the serial port to open.
+      await port.open({ baudRate: 115200 });
+
+      readUntilClosed(port);
+    });
+
+    async function readUntilClosed(port) {
+      const textDecoder = new TextDecoderStream();
+      const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+      const reader = textDecoder.readable
+        .pipeThrough(new TransformStream(new LineBreakTransformer()))
+        .getReader();
+
+      while (port.readable) {
+        const { value, done } = await reader.read();
+        if (done) {
+          reader.releaseLock();
+          break;
+        }
+        // value is a string.
+        receivedDataLabel.innerHTML = value;
+
+        // parse data in CSV format
+        const eventParts = value.split(',');
+        if (eventParts.length > 0) {
+          // make sure column selectors are avaialble for every element received
+          updateColumnSelectors(eventParts.length);
+
+          // forward element to corresponding plot
+          for (let index = 0; index < eventParts.length; index++) {
+            if (document.getElementById('columnSelector' + index).checked) {
+              plots[index].yQueue.push(parseFloat(eventParts[index]));
+            }
+          }
+        }
+      }
+
+      await port.close();
+    }
+
+    class LineBreakTransformer {
+      constructor() {
+        // A container for holding stream data until a new line.
+        this.chunks = "";
+      }
+
+      transform(chunk, controller) {
+        // Append new chunks to existing chunks.
+        this.chunks += chunk;
+        // For each line breaks in chunks, send the parsed lines out.
+        const lines = this.chunks.split("\r\n");
+        this.chunks = lines.pop();
+        lines.forEach((line) => controller.enqueue(line));
+      }
+
+      flush(controller) {
+        // When the stream is closed, flush any remaining chunks out.
+        controller.enqueue(this.chunks);
+      }
+    }
+
+    const columnSelectors = document.getElementById('columnSelectors');
+    function updateColumnSelectors(numSelectors) {
+      const currentNumSelectors = columnSelectors.children.length;
+      if (currentNumSelectors > numSelectors) {
+        for (let index = currentNumSelectors - 1; index >= numSelectors;
+            index--) {
+          // remove selectors
+          const selectorContainerName = 'columnSelector' + index + 'Container';
+          const selector = document.getElementById(selectorContainerName);
+          columnSelectors.removeChild(selector);
+        }
+      } else if (currentNumSelectors < numSelectors) {
+        for (let index = currentNumSelectors; index < numSelectors; index++) {
+          // add selectors
+          const selectorName = 'columnSelector' + index;
+
+          // create selector checkbox
+          const selectorCheckbox = document.createElement('input');
+          selectorCheckbox.type = 'checkbox';
+          selectorCheckbox.name = selectorName;
+          selectorCheckbox.id = selectorName;
+          selectorCheckbox.addEventListener('change', selectorUpdate);
+
+          // create selector label
+          const selectorLabel = document.createElement('label');
+          selectorLabel.htmlFor = selectorName;
+          selectorLabel.appendChild(document.createTextNode(index));
+
+          // put selector checkbox and label together
+          const selectorContainer = document.createElement('div');
+          selectorContainer.id = selectorName + 'Container';
+          selectorContainer.appendChild(selectorCheckbox);
+          selectorContainer.appendChild(selectorLabel);
+
+          columnSelectors.appendChild(selectorContainer)
+        }
+      }
+    }
+
+    function selectorUpdate(e) {
+      const selectorId = e.srcElement.id.replace('columnSelector', '');
+      if (this.checked) {
+        console.log(plots);
+        if (!(selectorId in plots)) {
+          // add new plot
+          plots[selectorId] = new Plot1D('myPlot' + selectorId,
+              document.getElementById('plots'));
+
+          // style new plot
+          plots[selectorId].canvas.width = 500;
+          plots[selectorId].canvas.height = 200;
+          plots[selectorId].canvas.style.background = 'lightgray';
+        }
+      } else {
+        if (selectorId in plots) {
+          // remove existing plot
+          plots[selectorId].plot.remove();   // from DOM
+          delete plots[selectorId];   // from data structure
+        }
+      }
+    }
+  </script>
+</body>
+</html>

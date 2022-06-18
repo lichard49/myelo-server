@@ -22,6 +22,11 @@ async def home(request: Request):
 	return templates.TemplateResponse('index.html', {'request': request})
 
 
+@app.get('/webserial')
+async def webserial(request: Request):
+	return templates.TemplateResponse('webserial.html', {'request': request})
+
+
 @app.get('/record')
 async def record(request: Request):
   global recording, record_file
