@@ -37,8 +37,14 @@
 
   <button id="button">Connect</button>
 
-  <button id="recordButton">Start Recording</button>
   <span>Received data: <span id="receivedDataLabel"></span></span>
+
+  <br><br>
+
+  <button id="recordButton">Start Recording</button>
+  <button id="downloadButton">Download Recording (<span id="downloadDetails">0</span> samples)</button>
+
+
   <p>Plot columns:</p>
   <div id="columnSelectors"></div>
 
@@ -213,6 +219,12 @@
         // value is a string.
         receivedDataLabel.innerHTML = value;
 
+        // handle recording
+        if (recorder.isRecording) {
+          recorder.append(value);
+          downloadDetails.innerText = recorder.bufferLength;
+        }
+
         // parse data in CSV format
         const eventParts = value.split(',');
         if (eventParts.length > 0) {
@@ -313,6 +325,66 @@
         }
       }
     }
+
+    const recordButton = document.getElementById('recordButton');
+    class Recorder {
+      constructor() {
+        this.isRecording = false;
+        this.buffer = '';
+        this.bufferLength = 0;
+      }
+
+      start() {
+        this.buffer = '';
+        this.bufferLength = 0;
+        this.isRecording = true;
+      }
+
+      stop() {
+        this.isRecording = false;
+      }
+
+      toggle() {
+        if (this.isRecording) {
+          this.stop();
+        } else {
+          this.start();
+        }
+      }
+
+      append(data) {
+        this.buffer += data + '\n';
+        this.bufferLength += 1;
+      }
+
+      download() {
+        window.showSaveFilePicker().then((fileHandler) => {
+          fileHandler.createWritable().then((writable) => {
+            writable.write(this.buffer).then(() => {
+              writable.close();
+            });
+          })
+        });
+      }
+    }
+    const recorder = new Recorder();
+    recordButton.addEventListener('click', function() {
+      recorder.toggle();
+
+      if (recorder.isRecording) {
+        document.body.style.background = 'red';
+        recordButton.innerText = 'Stop Recording';
+      } else {
+        document.body.style.background = 'white';
+        recordButton.innerText = 'Start Recording';
+      }
+    });
+
+    const downloadButton = document.getElementById('downloadButton');
+    const downloadDetails = document.getElementById('downloadDetails');
+    downloadButton.addEventListener('click', function() {
+      recorder.download();
+    });
   </script>
 </body>
 </html>
